@@ -1,0 +1,104 @@
+name: CI/CD to DigitalOcean
+
+on:
+  push:
+    branches:
+      - staging
+      - main
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run tests
+        run: npm test
+
+  deploy-staging:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/staging'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy files to staging server
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          echo "$DO_SSH_KEY" > do_key
+          chmod 600 do_key
+
+          rsync -avz --delete \
+            -e "ssh -i do_key -o StrictHostKeyChecking=no" \
+            ./ $DO_USER@$DO_HOST:/opt/digitalocean-demo-staging
+
+      - name: Restart staging app
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          echo "$DO_SSH_KEY" > do_key
+          chmod 600 do_key
+
+          ssh -i do_key -o StrictHostKeyChecking=no $DO_USER@$DO_HOST << 'EOF'
+            cd /opt/digitalocean-demo-staging
+            npm install
+            # kill any old node server
+            pkill node || true
+            # start new one in background on port 3000 with staging message
+            ENV_MESSAGE="Hello from STAGING!" nohup node src/server.js > app.log 2>&1 &
+          EOF
+
+  deploy-prod:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Copy files to prod server
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          echo "$DO_SSH_KEY" > do_key
+          chmod 600 do_key
+
+          rsync -avz --delete \
+            -e "ssh -i do_key -o StrictHostKeyChecking=no" \
+            ./ $DO_USER@$DO_HOST:/opt/digitalocean-demo-prod
+
+      - name: Restart prod app
+        env:
+          DO_HOST: ${{ secrets.DO_HOST }}
+          DO_USER: ${{ secrets.DO_USER }}
+          DO_SSH_KEY: ${{ secrets.DO_SSH_KEY }}
+        run: |
+          echo "$DO_SSH_KEY" > do_key
+          chmod 600 do_key
+
+          ssh -i do_key -o StrictHostKeyChecking=no $DO_USER@$DO_HOST << 'EOF'
+            cd /opt/digitalocean-demo-prod
+            npm install
+            pkill node || true
+            ENV_MESSAGE="Hello from PROD!" nohup node src/server.js > app.log 2>&1 &
+          EOF
