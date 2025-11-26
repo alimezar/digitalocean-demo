@@ -3,8 +3,9 @@
   "version": "1.0.0",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
-    "test": "node test/sanity.test.js"
+  "build": "node -e \"require('./src/server.js')\"",
+  "test": "npm run build && node test/sanity.test.js && node test/server.test.js",
+  "start": "node src/server.js"
   },
   "keywords": [],
   "author": "",
