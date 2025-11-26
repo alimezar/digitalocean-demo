@@ -7,7 +7,7 @@ const server = http.createServer((req, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end(message);
 });
-skfjew
+// Sucessfully stops build due to compile error -> skfjew
 if (require.main === module) {
   server.listen(3000, () => {
     console.log("Server running on port 3000");
